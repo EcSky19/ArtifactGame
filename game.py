@@ -61,12 +61,11 @@ class Player(pygame.sprite.Sprite):
 
     def take_damage(self):
         if self.invincible_timer <= 0:
-            # Shrink back if powered-up
+            # Shrink if powered-up
             if self.grown:
                 self.shrink()
             self.health -= 1
             self.invincible_timer = FPS  # 1 second
-            print(f"Ouch! Health: {self.health}")
 
     def update(self, platforms, powerups, enemies):
         if self.invincible_timer > 0:
@@ -139,10 +138,25 @@ class Enemy(pygame.sprite.Sprite):
         self.direction = 1
 
     def update(self):
-        # Patrol back and forth
         self.rect.x += self.speed * self.direction
         if self.rect.x > self.start_x + self.patrol_width or self.rect.x < self.start_x:
             self.direction *= -1
+
+# — Show Game Over Screen —
+def show_game_over(screen, font):
+    screen.fill((0, 0, 0))
+    text = font.render("Game Over", True, (255, 0, 0))
+    rect = text.get_rect(center=(SCREEN_WIDTH//2, SCREEN_HEIGHT//2))
+    screen.blit(text, rect)
+    pygame.display.flip()
+    waiting = True
+    while waiting:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type == pygame.KEYDOWN:
+                waiting = False
 
 # — Main Game Loop —
 def main():
@@ -150,27 +164,22 @@ def main():
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
     pygame.display.set_caption("2D Platformer with Patrol Enemies")
     clock = pygame.time.Clock()
-    font = pygame.font.Font(None, 36)
+    font = pygame.font.Font(None, 72)
 
     platforms = pygame.sprite.Group()
     powerups = pygame.sprite.Group()
     enemies = pygame.sprite.Group()
 
-    # Create player
     player = Player(100, SCREEN_HEIGHT - 150)
-
-    # Ground
     platforms.add(Platform(0, SCREEN_HEIGHT-40, SCREEN_WIDTH, 40))
-    # Floating
     for x, y, w, h in [(200,450,100,20),(400,350,120,20),(650,300,80,20)]:
         platforms.add(Platform(x,y,w,h))
-    # Power-up
     powerups.add(PowerUp(300,420))
-    # Enemies
     enemies.add(Enemy(500, SCREEN_HEIGHT-80, patrol_width=150))
     enemies.add(Enemy(350, 310, patrol_width=80, speed=3))
 
     all_sprites = pygame.sprite.Group(platforms, powerups, enemies, player)
+    small_font = pygame.font.Font(None, 36)
 
     running = True
     while running:
@@ -181,14 +190,13 @@ def main():
         player.update(platforms, powerups, enemies)
         enemies.update()
 
-        # End game if health depleted
         if player.health <= 0:
-            print("Game Over!")
+            show_game_over(screen, font)
             running = False
 
         screen.fill(BG_COLOR)
         all_sprites.draw(screen)
-        screen.blit(font.render(f"Health: {player.health}", True, (255,0,0)), (10,10))
+        screen.blit(small_font.render(f"Health: {player.health}", True, (255,0,0)), (10,10))
 
         pygame.display.flip()
         clock.tick(FPS)
