@@ -52,8 +52,18 @@ class Player(pygame.sprite.Sprite):
             self.rect = self.image.get_rect(midbottom=midbottom)
             self.grown = True
 
+    def shrink(self):
+        if self.grown:
+            midbottom = self.rect.midbottom
+            self.image = self.original_image
+            self.rect = self.image.get_rect(midbottom=midbottom)
+            self.grown = False
+
     def take_damage(self):
         if self.invincible_timer <= 0:
+            # Shrink back if powered-up
+            if self.grown:
+                self.shrink()
             self.health -= 1
             self.invincible_timer = FPS  # 1 second
             print(f"Ouch! Health: {self.health}")
@@ -170,6 +180,11 @@ def main():
 
         player.update(platforms, powerups, enemies)
         enemies.update()
+
+        # End game if health depleted
+        if player.health <= 0:
+            print("Game Over!")
+            running = False
 
         screen.fill(BG_COLOR)
         all_sprites.draw(screen)
