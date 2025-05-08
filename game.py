@@ -28,135 +28,152 @@ class Player(pygame.sprite.Sprite):
         self.vel.x = 0
         if keys[pygame.K_LEFT]: self.vel.x = -PLAYER_SPEED
         if keys[pygame.K_RIGHT]: self.vel.x = PLAYER_SPEED
-        if keys[pygame.K_SPACE] and self.on_ground: self.vel.y = -12
+        if keys[pygame.K_SPACE] and self.on_ground: self.vel.y = JUMP_VELOCITY
 
     def apply_gravity(self):
         self.vel.y = min(self.vel.y + GRAVITY, 15)
 
-    def update(self, platforms, enemies, doors, current_level):
+    def update(self, platforms, enemies):
+        # invincibility timer
         if self.invincible_timer > 0:
             self.invincible_timer -= 1
+        # input and movement
         self.handle_input()
         self.rect.x += self.vel.x
         for p in pygame.sprite.spritecollide(self, platforms, False):
-            if self.vel.x > 0: self.rect.right = p.rect.left
-            elif self.vel.x < 0: self.rect.left = p.rect.right
+            if self.vel.x > 0:
+                self.rect.right = p.rect.left
+            elif self.vel.x < 0:
+                self.rect.left = p.rect.right
         self.apply_gravity()
         self.rect.y += self.vel.y
         self.on_ground = False
         for p in pygame.sprite.spritecollide(self, platforms, False):
             if self.vel.y > 0:
-                self.rect.bottom = p.rect.top; self.vel.y = 0; self.on_ground = True
+                self.rect.bottom = p.rect.top
+                self.vel.y = 0
+                self.on_ground = True
             elif self.vel.y < 0:
-                self.rect.top = p.rect.bottom; self.vel.y = 0
-        # Enemy collision
+                self.rect.top = p.rect.bottom
+                self.vel.y = 0
+        # enemy collision
         if pygame.sprite.spritecollide(self, enemies, False) and self.invincible_timer <= 0:
             self.health -= 1
             self.invincible_timer = FPS
-        # Door collision
-        hits = pygame.sprite.spritecollide(self, doors, False)
-        for door in hits:
-            if door.level == current_level:
-                # teleport to next level start
-                next_level = current_level + 1
-                if next_level < len(doors.levels):
-                    self.rect.x = next_level * SCREEN_WIDTH + 10
-                    self.vel = pygame.math.Vector2(0,0)
 
 class Platform(pygame.sprite.Sprite):
-    def __init__(self, x,y,w,h):
-        super().__init__(); self.image = pygame.Surface((w,h)); self.image.fill((0,200,0)); self.rect = self.image.get_rect(topleft=(x,y))
+    def __init__(self, x, y, w, h):
+        super().__init__()
+        self.image = pygame.Surface((w, h))
+        self.image.fill((0,200,0))
+        self.rect = self.image.get_rect(topleft=(x, y))
 
 class Enemy(pygame.sprite.Sprite):
-    def __init__(self, x,y,patrol,spd):
-        super().__init__(); s=40; self.image=pygame.Surface((s,s)); self.image.fill((255,255,255)); pygame.draw.rect(self.image,(0,0,0),self.image.get_rect(),2)
-        f=pygame.font.Font(None,24); t = f.render("HW",True,(0,0,0)); self.image.blit(t,t.get_rect(center=(s//2,s//2)))
-        self.rect=self.image.get_rect(topleft=(x,y)); self.start_x=x; self.range=patrol; self.spd=spd; self.dir=1
-    def update(self):
-        self.rect.x += self.spd*self.dir
-        if self.rect.x < self.start_x or self.rect.x > self.start_x+self.range: self.dir*=-1
-
-class Door(pygame.sprite.Sprite):
-    levels = []  # placeholder for number of levels
-    def __init__(self, x, y, level):
+    def __init__(self, x, y, patrol_range, speed):
         super().__init__()
-        self.image = pygame.Surface((40,60))
-        self.image.fill((139,69,19))  # brown door
-        pygame.draw.rect(self.image, (160,82,45), (5,5,30,50))
-        self.rect = self.image.get_rect(topleft=(x,y))
-        self.level = level
+        size = 40
+        self.image = pygame.Surface((size, size))
+        self.image.fill((255,255,255))
+        pygame.draw.rect(self.image, (0,0,0), self.image.get_rect(), 2)
+        font = pygame.font.Font(None, 24)
+        txt = font.render("HW", True, (0,0,0))
+        self.image.blit(txt, txt.get_rect(center=(size//2, size//2)))
+        self.rect = self.image.get_rect(topleft=(x, y))
+        self.start_x = x
+        self.range = patrol_range
+        self.speed = speed
+        self.direction = 1
+
+    def update(self):
+        self.rect.x += self.speed * self.direction
+        if self.rect.x < self.start_x or self.rect.x > self.start_x + self.range:
+            self.direction *= -1
 
 # — Main —
 def main():
     pygame.init()
-    screen = pygame.display.set_mode((SCREEN_WIDTH,SCREEN_HEIGHT))
+    screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+    pygame.display.set_caption("2D Platformer - High School to Cornell")
     clock = pygame.time.Clock()
-        # Load backgrounds (with fallback if files missing)
+
+    # load backgrounds with fallback
     try:
         bg_high = pygame.image.load('Images/highschool_bg.png').convert()
     except FileNotFoundError:
-        # solid color fallback
         bg_high = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
-        bg_high.fill((200, 200, 200))  # light grey school hallway
+        bg_high.fill((200, 200, 200))
     try:
         bg_cornell = pygame.image.load('Images/cornell_bg.png').convert()
     except FileNotFoundError:
         bg_cornell = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
-        bg_cornell.fill((180, 50, 50))  # Cornell red
-    backgrounds = [
-        pygame.transform.scale(bg_high, (SCREEN_WIDTH, SCREEN_HEIGHT)),
-        pygame.transform.scale(bg_cornell, (SCREEN_WIDTH, SCREEN_HEIGHT))
+        bg_cornell.fill((180, 50, 50))
+    backgrounds = [pygame.transform.scale(bg_high, (SCREEN_WIDTH, SCREEN_HEIGHT)),
+                   pygame.transform.scale(bg_cornell, (SCREEN_WIDTH, SCREEN_HEIGHT))]
+
+    # level data
+    levels = [
+        { 'platforms': [(0,560,1000,40),(200,450,100,20),(400,350,120,20),(650,300,80,20)],
+          'enemies': [(500,520,150,2),(350,310,80,3)] },
+        { 'platforms': [(800,560,1000,40),(1000,450,100,20),(1200,350,120,20)],
+          'enemies': [(1100,520,100,1)] }
     ]
 
-# Level definitions
-    levels = [
-        { 'platforms': [(0,560,800,40),(200,450,100,20),(400,350,120,20),(650,300,80,20)], 'enemies': [(500,520,150,2)], 'door_y':500 },
-        { 'platforms': [(800,560,800,40),(1000,450,100,20),(1200,350,120,20)], 'enemies': [(1100,520,100,1)], 'door_y':500 }
-    ]
-    # Create groups
+    # create sprite groups
     platforms = pygame.sprite.Group()
     enemies = pygame.sprite.Group()
-    doors = pygame.sprite.Group()
-    # Flatten world
+
+    # flatten world
     for idx, lvl in enumerate(levels):
         x_off = idx * SCREEN_WIDTH
         for x,y,w,h in lvl['platforms']:
             platforms.add(Platform(x_off + x, y, w, h))
         for x,y,pat,spd in lvl['enemies']:
             enemies.add(Enemy(x_off + x, y, pat, spd))
-        # door at end of level
-        d_x = x_off + SCREEN_WIDTH - 50
-        d_y = lvl['door_y']
-        door = Door(d_x, d_y, idx)
-        doors.add(door)
-    Door.levels = levels  # store for access
 
+    # player
     player = Player(10, 510)
 
     running = True
     while running:
-        for e in pygame.event.get():
-            if e.type == pygame.QUIT: running = False
-        # calculate current level
-        cur_level = player.rect.centerx // SCREEN_WIDTH
-        # update
-        player.update(platforms, enemies, doors, cur_level)
-        enemies.update()
-        # check win
-        if cur_level >= len(levels):
-            # show win
-            running = False
-        # camera
-        cam_x = int(player.rect.centerx - SCREEN_WIDTH/2)
-        cam_x = max(0, min(cam_x, len(levels)*SCREEN_WIDTH - SCREEN_WIDTH))
-        # draw bg
-        screen.blit(backgrounds[cur_level], (0,0))
-        # draw sprites
-        for g in (platforms, enemies, doors):
-            for spr in g:
-                screen.blit(spr.image, (spr.rect.x - cam_x, spr.rect.y))
-        screen.blit(player.image, (player.rect.x - cam_x, player.rect.y))
-        pygame.display.flip(); clock.tick(FPS)
-    pygame.quit(); sys.exit()
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
 
-if __name__=='__main__': main()
+        # update
+        player.update(platforms, enemies)
+        enemies.update()
+
+        # determine current level for background
+        cur_level = player.rect.centerx // SCREEN_WIDTH
+        cur_level = max(0, min(cur_level, len(levels)-1))
+
+        # win condition when passing last screen
+        if player.rect.left > len(levels)*SCREEN_WIDTH:
+            print("You Win!")
+            running = False
+
+        # game over
+        if player.health <= 0:
+            print("Game Over")
+            running = False
+
+        # camera follow
+        cam_x = player.rect.centerx - SCREEN_WIDTH // 2
+        cam_x = max(0, min(cam_x, len(levels)*SCREEN_WIDTH - SCREEN_WIDTH))
+
+        # draw
+        screen.blit(backgrounds[cur_level], (0,0))
+        for spr in platforms:
+            screen.blit(spr.image, (spr.rect.x - cam_x, spr.rect.y))
+        for spr in enemies:
+            screen.blit(spr.image, (spr.rect.x - cam_x, spr.rect.y))
+        screen.blit(player.image, (player.rect.x - cam_x, player.rect.y))
+
+        pygame.display.flip()
+        clock.tick(FPS)
+
+    pygame.quit()
+    sys.exit()
+
+if __name__ == '__main__':
+    main()
