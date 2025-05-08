@@ -9,12 +9,18 @@ PLAYER_SPEED = 5
 JUMP_VELOCITY = -12
 BG_COLOR = (135, 206, 235)  # sky blue
 
-# — Player Sprite —
+# — Player Sprite (Human‑like) —
 class Player(pygame.sprite.Sprite):
     def __init__(self, x, y):
         super().__init__()
-        self.original_image = pygame.Surface((40, 50), pygame.SRCALPHA)
-        self.original_image.fill((255, 0, 0))  # red block
+        w, h = 30, 50
+        self.original_image = pygame.Surface((w, h), pygame.SRCALPHA)
+        # Draw head
+        head_radius = 8
+        pygame.draw.circle(self.original_image, (255, 224, 189), (w//2, head_radius), head_radius)
+        # Draw body
+        body_rect = pygame.Rect(w//2 - 5, head_radius*2, 10, h - head_radius*2)
+        pygame.draw.rect(self.original_image, (0, 0, 255), body_rect)
         self.image = self.original_image
         self.rect = self.image.get_rect(topleft=(x, y))
         self.vel = pygame.math.Vector2(0, 0)
@@ -49,17 +55,15 @@ class Player(pygame.sprite.Sprite):
     def take_damage(self):
         if self.invincible_timer <= 0:
             self.health -= 1
-            self.invincible_timer = 60  # 1 second at 60 FPS
+            self.invincible_timer = FPS  # 1 second
             print(f"Ouch! Health: {self.health}")
 
     def update(self, platforms, powerups, enemies):
-        # Decrease invincibility timer
         if self.invincible_timer > 0:
             self.invincible_timer -= 1
 
         self.handle_input()
-
-        # Horizontal movement & collisions
+        # Horizontal collisions
         self.rect.x += self.vel.x
         for plat in pygame.sprite.spritecollide(self, platforms, False):
             if self.vel.x > 0:
@@ -67,7 +71,7 @@ class Player(pygame.sprite.Sprite):
             elif self.vel.x < 0:
                 self.rect.left = plat.rect.right
 
-        # Vertical movement & collisions
+        # Vertical collisions
         self.apply_gravity()
         self.rect.y += self.vel.y
         self.on_ground = False
@@ -80,11 +84,10 @@ class Player(pygame.sprite.Sprite):
                 self.rect.top = plat.rect.bottom
                 self.vel.y = 0
 
-        # Power-up collision
+        # Power-up
         if pygame.sprite.spritecollide(self, powerups, True):
             self.grow()
-
-        # Enemy collision
+        # Enemy
         if pygame.sprite.spritecollide(self, enemies, False):
             self.take_damage()
 
@@ -93,78 +96,71 @@ class Platform(pygame.sprite.Sprite):
     def __init__(self, x, y, w, h):
         super().__init__()
         self.image = pygame.Surface((w, h))
-        self.image.fill((0, 255, 0))  # green block
+        self.image.fill((0, 255, 0))
         self.rect = self.image.get_rect(topleft=(x, y))
 
-# — Dumbbell Power-Up Sprite —
+# — Dumbbell Power-Up —
 class PowerUp(pygame.sprite.Sprite):
     def __init__(self, x, y):
         super().__init__()
         size = 30
         self.image = pygame.Surface((size, size), pygame.SRCALPHA)
-        cap_radius = 8
-        bar_rect = pygame.Rect(cap_radius, size//2 - 4, size - 2*cap_radius, 8)
-        pygame.draw.rect(self.image, (80, 80, 80), bar_rect)
-        pygame.draw.circle(self.image, (80, 80, 80), (cap_radius, size//2), cap_radius)
-        pygame.draw.circle(self.image, (80, 80, 80), (size - cap_radius, size//2), cap_radius)
+        cap = 8
+        pygame.draw.rect(self.image, (80, 80, 80), (cap, size//2-4, size-2*cap, 8))
+        pygame.draw.circle(self.image, (80, 80, 80), (cap, size//2), cap)
+        pygame.draw.circle(self.image, (80, 80, 80), (size-cap, size//2), cap)
         self.rect = self.image.get_rect(center=(x, y))
 
-# — Enemy Sprite (Homework) —
+# — Enemy Sprite (Homework Patrol) —
 class Enemy(pygame.sprite.Sprite):
-    def __init__(self, x, y):
+    def __init__(self, x, y, patrol_width=120, speed=2):
         super().__init__()
         size = 40
         self.image = pygame.Surface((size, size))
-        self.image.fill((255, 255, 255))  # white block
+        self.image.fill((255, 255, 255))
         pygame.draw.rect(self.image, (0, 0, 0), self.image.get_rect(), 2)
         font = pygame.font.Font(None, 24)
         txt = font.render("HW", True, (0, 0, 0))
-        txt_rect = txt.get_rect(center=(size//2, size//2))
-        self.image.blit(txt, txt_rect)
+        self.image.blit(txt, txt.get_rect(center=(size//2, size//2)))
         self.rect = self.image.get_rect(topleft=(x, y))
+        self.start_x = x
+        self.patrol_width = patrol_width
+        self.speed = speed
+        self.direction = 1
 
     def update(self):
-        # Placeholder for future movement/animation
-        pass
+        # Patrol back and forth
+        self.rect.x += self.speed * self.direction
+        if self.rect.x > self.start_x + self.patrol_width or self.rect.x < self.start_x:
+            self.direction *= -1
 
 # — Main Game Loop —
 def main():
     pygame.init()
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-    pygame.display.set_caption("2D Platformer with Enemies")
+    pygame.display.set_caption("2D Platformer with Patrol Enemies")
     clock = pygame.time.Clock()
     font = pygame.font.Font(None, 36)
 
-    all_sprites = pygame.sprite.Group()
-    platforms   = pygame.sprite.Group()
-    powerups    = pygame.sprite.Group()
-    enemies     = pygame.sprite.Group()
+    platforms = pygame.sprite.Group()
+    powerups = pygame.sprite.Group()
+    enemies = pygame.sprite.Group()
 
     # Create player
     player = Player(100, SCREEN_HEIGHT - 150)
-    all_sprites.add(player)
 
-    # Ground platform
-    ground = Platform(0, SCREEN_HEIGHT - 40, SCREEN_WIDTH, 40)
-    platforms.add(ground)
-    all_sprites.add(ground)
+    # Ground
+    platforms.add(Platform(0, SCREEN_HEIGHT-40, SCREEN_WIDTH, 40))
+    # Floating
+    for x, y, w, h in [(200,450,100,20),(400,350,120,20),(650,300,80,20)]:
+        platforms.add(Platform(x,y,w,h))
+    # Power-up
+    powerups.add(PowerUp(300,420))
+    # Enemies
+    enemies.add(Enemy(500, SCREEN_HEIGHT-80, patrol_width=150))
+    enemies.add(Enemy(350, 310, patrol_width=80, speed=3))
 
-    # Floating platforms
-    for x, y, w, h in [(200, 450, 100, 20), (400, 350, 120, 20), (650, 300, 80, 20)]:
-        plat = Platform(x, y, w, h)
-        platforms.add(plat)
-        all_sprites.add(plat)
-
-    # Place power-up
-    dumbbell = PowerUp(300, 420)
-    powerups.add(dumbbell)
-    all_sprites.add(dumbbell)
-
-    # Create enemies
-    for x, y in [(500, SCREEN_HEIGHT - 80), (350, 310)]:
-        enemy = Enemy(x, y)
-        enemies.add(enemy)
-        all_sprites.add(enemy)
+    all_sprites = pygame.sprite.Group(platforms, powerups, enemies, player)
 
     running = True
     while running:
@@ -172,18 +168,12 @@ def main():
             if event.type == pygame.QUIT:
                 running = False
 
-        # Update only dynamic sprites with correct arguments
         player.update(platforms, powerups, enemies)
         enemies.update()
-        powerups.update()
 
-        # Draw everything
         screen.fill(BG_COLOR)
         all_sprites.draw(screen)
-
-        # Display health
-        health_text = font.render(f"Health: {player.health}", True, (255, 0, 0))
-        screen.blit(health_text, (10, 10))
+        screen.blit(font.render(f"Health: {player.health}", True, (255,0,0)), (10,10))
 
         pygame.display.flip()
         clock.tick(FPS)
