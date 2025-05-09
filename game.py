@@ -23,6 +23,17 @@ NOTE_LIFETIME = 60
 SHOOT_COOLDOWN = 60
 NOTE_COOLDOWN = 20
 LEVEL_WIDTH = SCREEN_WIDTH + 100
+LEVEL_MSG_DURATION = FPS * 2
+LEVEL_MESSAGES = [
+    "Back to High School!",
+    "Welcome to Cornell!",
+    "To Breazzano",
+    "Hockey at Lynah",
+    "Gym Time",
+    "Starting To Work",
+    "Start My Own Venture",
+    "Time to Ship My Startup"
+]
 
 # — Utility Functions —
 def show_message(screen, font, text, color):
@@ -424,6 +435,8 @@ def main():
             if c == 'beer':  collectibles.add(BeerCollectible(xoff + x, y))
 
     player  = Player(10, 510)
+    last_level    = -1
+    level_msg_tmr = 0
     running = True
 
     while running:
@@ -458,6 +471,10 @@ def main():
 
         # draw background
         current_level = cam // LEVEL_WIDTH
+        # ── detect level change ──
+        if current_level != last_level:
+            last_level    = current_level
+            level_msg_tmr = LEVEL_MSG_DURATION
         screen.blit(backgrounds[current_level], (0, 0))
 
         # ── HEALTH DISPLAY ──
@@ -469,6 +486,15 @@ def main():
         # position at top‑right, with a 10px margin
         score_x   = SCREEN_WIDTH - score_surf.get_width() - 10
         screen.blit(score_surf, (score_x, 10))
+
+        # ── LEVEL BANNER ──
+        if level_msg_tmr > 0:
+            # center message text
+            text = LEVEL_MESSAGES[current_level]
+            msg_surf = font_small.render(text, True, (255, 255, 255))
+            msg_x = (SCREEN_WIDTH - msg_surf.get_width()) // 2
+            screen.blit(msg_surf, (msg_x, 50))
+            level_msg_tmr -= 1
 
         # draw all sprites
         for grp in (platforms, enemies, pucks, notes, powerups, collectibles):
