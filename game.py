@@ -178,11 +178,11 @@ def main():
         pygame.transform.scale(b, (SCREEN_WIDTH, SCREEN_HEIGHT)) for b in (bg_high, bg_cornell, bg_lynah)
     ]
 
-    # Level data
+        # Level data
     gap = 50
     levels = [
-        { 'platforms': [(0,560,SCREEN_WIDTH-gap,40),(200,450,100,20),(400,350,120,20),(650,300,80,20)], 'enemies': [(500,520,150,2),(350,310,80,3)], 'powerups': [(300,520)] },
-        { 'platforms': [(gap,560,SCREEN_WIDTH-2*gap,40),(1000-SCREEN_WIDTH,450,100,20),(1200-SCREEN_WIDTH,350,120,20)], 'enemies': [(1100,520,100,1)], 'powerups': [(900,520)] },
+        { 'platforms': [(0,560,SCREEN_WIDTH-gap,40),(200,450,100,20),(400,350,120,20),(650,300,80,20)], 'enemies': [(500,520,150,2),(350,310,80,3)], 'powerups': [] },
+        { 'platforms': [(gap,560,SCREEN_WIDTH-2*gap,40),(1000-SCREEN_WIDTH,450,100,20),(1200-SCREEN_WIDTH,350,120,20)], 'enemies': [(1100,520,100,1)], 'powerups': [] },
         { 'platforms': [(2*gap,560,SCREEN_WIDTH-2*gap,40)], 'enemies': [], 'powerups': [(SCREEN_WIDTH*2-200,520)] }
     ]
 
@@ -223,7 +223,11 @@ def main():
         # Determine current level index
         cur_level = max(0, min(player.rect.centerx // SCREEN_WIDTH, len(levels) - 1))
 
-        # Win/Game Over
+                # Win/Game Over
+        # falling off bottom kills player
+        if player.rect.top > SCREEN_HEIGHT:
+            print("Game Over")
+            running = False
         if player.rect.left > len(levels) * SCREEN_WIDTH:
             print("You Win!")
             running = False
