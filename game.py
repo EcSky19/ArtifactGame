@@ -17,10 +17,10 @@ GRAVITY = 0.5
 PLAYER_SPEED = 5
 JUMP_VELOCITY = -12
 PUCK_SPEED = 10
-PUCK_LIFETIME = 40
+PUCK_LIFETIME = 30
 NOTE_SPEED = 8
 NOTE_LIFETIME = 60
-SHOOT_COOLDOWN = 50
+SHOOT_COOLDOWN = 60
 NOTE_COOLDOWN = 20
 LEVEL_WIDTH = SCREEN_WIDTH + 100
 
@@ -463,6 +463,12 @@ def main():
         # ── HEALTH DISPLAY ──
         health_surf = font_small.render(f"Health: {player.health}", True, (255, 0, 0))
         screen.blit(health_surf, (10, 10))
+
+        # ── SCORE DISPLAY ──
+        score_surf = font_small.render(f"Score: {score}", True, (255, 215, 0))
+        # position at top‑right, with a 10px margin
+        score_x   = SCREEN_WIDTH - score_surf.get_width() - 10
+        screen.blit(score_surf, (score_x, 10))
 
         # draw all sprites
         for grp in (platforms, enemies, pucks, notes, powerups, collectibles):
