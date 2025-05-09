@@ -1,5 +1,6 @@
 import pygame
 import sys
+import random
 
 # Global groups and score
 global pucks, notes, collectibles, score
@@ -123,6 +124,8 @@ class Player(pygame.sprite.Sprite):
             elif isinstance(pu, LaptopPowerUp):
                 self.has_laptop = True
                 self.max_jumps = 2
+            elif isinstance(pu, GameControllerPowerUp):
+                self.health += 2
         # shooting with hockey power-up
         keys = pygame.key.get_pressed()
         if self.has_hockey and keys[pygame.K_q] and self.shoot_timer <= 0:
@@ -206,6 +209,20 @@ class MusicNote(pygame.sprite.Sprite):
     def update(self):
         self.rect.x+=self.vel.x; self.lifetime-=1
         if self.lifetime<=0: self.kill()
+
+class GameControllerPowerUp(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        super().__init__()
+        size = 24
+        # simple controller icon: gray rectangle + two circles as “buttons”
+        self.image = pygame.Surface((size, size), pygame.SRCALPHA)
+        # body
+        pygame.draw.rect(self.image, (100,100,100), (0, size*0.3, size, size*0.4), border_radius=6)
+        # left button
+        pygame.draw.circle(self.image, (200,0,0), (int(size*0.3), int(size*0.5)), 4)
+        # right button
+        pygame.draw.circle(self.image, (0,200,0), (int(size*0.7), int(size*0.5)), 4)
+        self.rect = self.image.get_rect(center=(x, y))
 
 class HockeyPowerUp(pygame.sprite.Sprite):
     def __init__(self, x, y):
@@ -343,10 +360,40 @@ def main():
         for x,y,t in lvl['powerups']:
             if t=='hockey': powerups.add(HockeyPowerUp(xoff+x,y))
             if t=='laptop': powerups.add(LaptopPowerUp(xoff+x,y))
+            if t == 'controller':powerups.add(GameControllerPowerUp(xoff + x, y))
         for x,y,c in lvl['collectibles']:
             if c=='coin': collectibles.add(CoinCollectible(xoff+x,y))
             if c=='sushi': collectibles.add(SushiCollectible(xoff+x,y))
             if c=='beer': collectibles.add(BeerCollectible(xoff+x,y))
+    for idx in range(len(levels)):
+      xoff = idx * LEVEL_WIDTH
+      level_left  = xoff + 50
+      level_right = xoff + LEVEL_WIDTH - 50
+      level_top   = 100
+      level_bottom= SCREEN_HEIGHT - 100
+      # spawn 3 extra random power‑ups per level
+      for _ in range(3):
+        pu_type = random.choice(['hockey', 'laptop', 'controller'])
+        x = random.randint(level_left, level_right)
+        y = random.randint(level_top, level_bottom)
+        if pu_type == 'hockey':
+            powerups.add(HockeyPowerUp(x, y))
+        elif pu_type == 'laptop':
+            powerups.add(LaptopPowerUp(x, y))
+        else:
+            powerups.add(GameControllerPowerUp(x, y))
+
+      # spawn 8 extra random collectibles per level
+      for _ in range(8):
+        col_type = random.choice(['coin', 'sushi', 'beer'])
+        x = random.randint(level_left, level_right)
+        y = random.randint(level_top, level_bottom)
+        if col_type == 'coin':
+            collectibles.add(CoinCollectible(x, y))
+        elif col_type == 'sushi':
+            collectibles.add(SushiCollectible(x, y))
+        else:
+            collectibles.add(BeerCollectible(x, y))
 
     # spawn with per‑level difficulty scaling
     for idx, lvl in enumerate(levels):
