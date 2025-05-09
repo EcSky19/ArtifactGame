@@ -9,6 +9,7 @@ PLAYER_SPEED = 5
 JUMP_VELOCITY = -12
 PUCK_SPEED = 10
 PUCK_LIFETIME = 60  # frames
+SHOOT_COOLDOWN = 15  # frames between shots
 
 # — Classes —
 class Player(pygame.sprite.Sprite):
@@ -22,8 +23,9 @@ class Player(pygame.sprite.Sprite):
         # helmet overlay
         self.helmet = pygame.Surface((w, h), pygame.SRCALPHA)
         pygame.draw.arc(self.helmet, (200,200,0), (w//2-12, 0, 24, 16), 3.14, 0, 4)
-        # start without power
+        # state
         self.has_hockey = False
+        self.shoot_timer = 0
         self.image = self.base_image
         self.rect = self.image.get_rect(topleft=(x, y))
         self.vel = pygame.math.Vector2(0, 0)
@@ -48,17 +50,21 @@ class Player(pygame.sprite.Sprite):
         self.vel.y = min(self.vel.y + GRAVITY, 15)
 
     def update(self, platforms, enemies, pucks_group, powerups_group):
-        # invincibility timer
+        # timers
         if self.invincible_timer > 0:
             self.invincible_timer -= 1
-        # input and movement
+        if self.shoot_timer > 0:
+            self.shoot_timer -= 1
+        # input
         self.handle_input()
+        # horizontal movement & collision
         self.rect.x += self.vel.x
         for p in pygame.sprite.spritecollide(self, platforms, False):
             if self.vel.x > 0:
                 self.rect.right = p.rect.left
             elif self.vel.x < 0:
                 self.rect.left = p.rect.right
+        # gravity & vertical
         self.apply_gravity()
         self.rect.y += self.vel.y
         self.on_ground = False
@@ -70,20 +76,26 @@ class Player(pygame.sprite.Sprite):
             elif self.vel.y < 0:
                 self.rect.top = p.rect.bottom
                 self.vel.y = 0
-        # collect hockey power-up
-        hits = pygame.sprite.spritecollide(self, powerups_group, True)
-        if hits:
+        # collect power-up
+        if pygame.sprite.spritecollide(self, powerups_group, True):
             self.has_hockey = True
-        # enemy collision
-        if pygame.sprite.spritecollide(self, enemies, False) and self.invincible_timer <= 0:
-            self.health -= 1
-            self.invincible_timer = FPS
-        # shoot puck if powered
+        # shooting
         keys = pygame.key.get_pressed()
-        if self.has_hockey and keys[pygame.K_q]:
+        if self.has_hockey and keys[pygame.K_q] and self.shoot_timer <= 0:
             puck = Puck(self.rect.centerx, self.rect.centery, self.facing)
             pucks_group.add(puck)
-        # update image
+            self.shoot_timer = SHOOT_COOLDOWN
+        # enemy collisions: stomp or damage
+        for enemy in pygame.sprite.spritecollide(self, enemies, False):
+            # if falling onto enemy
+            if self.vel.y > 0 and self.rect.bottom <= enemy.rect.top + 10:
+                enemy.kill()
+                self.vel.y = JUMP_VELOCITY
+            else:
+                if self.invincible_timer <= 0:
+                    self.health -= 1
+                    self.invincible_timer = FPS
+        # update image (helmet)
         self.image = self.base_image.copy()
         if self.has_hockey:
             self.image.blit(self.helmet, (0,0))
@@ -149,7 +161,7 @@ def main():
     pygame.display.set_caption("2D Platformer with Hockey Power-Up")
     clock = pygame.time.Clock()
 
-    # Load backgrounds...
+    # Load backgrounds with fallback
     try:
         bg_high = pygame.image.load('Images/highschool_bg.png').convert()
     except FileNotFoundError:
@@ -162,7 +174,9 @@ def main():
         bg_lynah = pygame.image.load('Images/lynah_bg.png').convert()
     except FileNotFoundError:
         bg_lynah = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT)); bg_lynah.fill((173,216,230))
-    backgrounds = [pygame.transform.scale(b, (SCREEN_WIDTH, SCREEN_HEIGHT)) for b in (bg_high,bg_cornell,bg_lynah)]
+    backgrounds = [
+        pygame.transform.scale(b, (SCREEN_WIDTH, SCREEN_HEIGHT)) for b in (bg_high, bg_cornell, bg_lynah)
+    ]
 
     # Level data
     gap = 50
@@ -193,34 +207,47 @@ def main():
     running = True
     while running:
         for event in pygame.event.get():
-            if event.type==pygame.QUIT:
-                running=False
+            if event.type == pygame.QUIT:
+                running = False
 
         # Update
         player.update(platforms, enemies, pucks, powerups)
         enemies.update()
         pucks.update()
+        # puck-enemy collision
+        for puck in pucks:
+            hit = pygame.sprite.spritecollide(puck, enemies, True)
+            if hit:
+                puck.kill()
 
-        # Determine level
-        cur_level = max(0, min(player.rect.centerx//SCREEN_WIDTH, len(levels)-1))
+        # Determine current level index
+        cur_level = max(0, min(player.rect.centerx // SCREEN_WIDTH, len(levels) - 1))
 
         # Win/Game Over
-        if player.rect.left>len(levels)*SCREEN_WIDTH: print("You Win!"); running=False
-        if player.health<=0: print("Game Over"); running=False
+        if player.rect.left > len(levels) * SCREEN_WIDTH:
+            print("You Win!")
+            running = False
+        if player.health <= 0:
+            print("Game Over")
+            running = False
 
-        # Camera
-        cam_x = player.rect.centerx - SCREEN_WIDTH//2
-        max_cam = len(levels)*SCREEN_WIDTH - SCREEN_WIDTH
+        # Camera follow
+        cam_x = player.rect.centerx - SCREEN_WIDTH // 2
+        max_cam = len(levels) * SCREEN_WIDTH - SCREEN_WIDTH
         cam_x = max(0, min(cam_x, max_cam))
 
         # Draw
-        screen.blit(backgrounds[cur_level],(0,0))
-        for g in (platforms,enemies,pucks,powerups):
-            for spr in g:
-                screen.blit(spr.image,(spr.rect.x-cam_x,spr.rect.y))
-        screen.blit(player.image,(player.rect.x-cam_x,player.rect.y))
-        pygame.display.flip(); clock.tick(FPS)
+        screen.blit(backgrounds[cur_level], (0, 0))
+        for group in (platforms, enemies, pucks, powerups):
+            for spr in group:
+                screen.blit(spr.image, (spr.rect.x - cam_x, spr.rect.y))
+        screen.blit(player.image, (player.rect.x - cam_x, player.rect.y))
 
-    pygame.quit(); sys.exit()
+        pygame.display.flip()
+        clock.tick(FPS)
 
-if __name__=='__main__': main()
+    pygame.quit()
+    sys.exit()
+
+if __name__ == '__main__':
+    main()
