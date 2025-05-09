@@ -16,11 +16,12 @@ GRAVITY = 0.5
 PLAYER_SPEED = 5
 JUMP_VELOCITY = -12
 PUCK_SPEED = 10
-PUCK_LIFETIME = 60
+PUCK_LIFETIME = 40
 NOTE_SPEED = 8
 NOTE_LIFETIME = 60
-SHOOT_COOLDOWN = 15
+SHOOT_COOLDOWN = 50
 NOTE_COOLDOWN = 20
+LEVEL_WIDTH = SCREEN_WIDTH + 100
 
 # — Utility Functions —
 def show_message(screen, font, text, color):
@@ -42,20 +43,19 @@ class Player(pygame.sprite.Sprite):
     def __init__(self, x, y):
         super().__init__()
         w, h = 30, 50
-        # base graphic
+        self.spawn = (x, y)
         self.base_image = pygame.Surface((w, h), pygame.SRCALPHA)
         pygame.draw.circle(self.base_image, (255,224,189), (w//2,8), 8)
         pygame.draw.rect(self.base_image, (0,0,255), (w//2-5,16,10,h-16))
-        # overlays
         self.helmet = pygame.Surface((w,h), pygame.SRCALPHA)
         pygame.draw.arc(self.helmet, (200,200,0), (w//2-12,0,24,16), 3.14,0,4)
         self.guitar = pygame.Surface((w,h), pygame.SRCALPHA)
         pygame.draw.ellipse(self.guitar, (160,82,45), (w//2-8,h//2-4,16,24))
         pygame.draw.rect(self.guitar, (139,69,19), (w//2+6,h//2-10,4,20))
-        # state
         self.has_hockey = False
         self.has_guitar = False
-        self.max_jumps = 1  # supports laptop double-jump
+        self.has_laptop = False
+        self.max_jumps = 1
         self.jumps = 0
         self.image = self.base_image.copy()
         self.rect = self.image.get_rect(topleft=(x,y))
@@ -70,21 +70,15 @@ class Player(pygame.sprite.Sprite):
     def handle_input(self):
         keys = pygame.key.get_pressed()
         self.vel.x = 0
-        if keys[pygame.K_LEFT]:
-            self.vel.x = -PLAYER_SPEED; self.facing = -1
-        if keys[pygame.K_RIGHT]:
-            self.vel.x = PLAYER_SPEED; self.facing = 1
-        # jump / double jump
+        if keys[pygame.K_LEFT]: self.vel.x = -PLAYER_SPEED; self.facing = -1
+        if keys[pygame.K_RIGHT]: self.vel.x = PLAYER_SPEED; self.facing = 1
         if keys[pygame.K_SPACE]:
             if self.on_ground or self.jumps < self.max_jumps:
-                self.vel.y = JUMP_VELOCITY
-                self.jumps += 1
+                self.vel.y = JUMP_VELOCITY; self.jumps += 1
 
     def apply_gravity(self):
         self.vel.y = min(self.vel.y + GRAVITY, 15)
 
-    def grow(self):
-        pass
     def lose_powerups(self):
         self.has_hockey = False
         self.has_guitar = False
@@ -92,45 +86,81 @@ class Player(pygame.sprite.Sprite):
 
     def update(self, platforms, enemies, pucks, notes, powerups, collectibles):
         global score
-        if self.invincible_timer>0: self.invincible_timer-=1
-        if self.shoot_timer>0: self.shoot_timer-=1
-        if self.note_timer>0: self.note_timer-=1
-        # move
-        self.handle_input(); self.rect.x+=self.vel.x
-        for plat in pygame.sprite.spritecollide(self,platforms,False):
-            if self.vel.x>0: self.rect.right=plat.rect.left
-            elif self.vel.x<0: self.rect.left=plat.rect.right
-        self.apply_gravity(); self.rect.y+=self.vel.y; self.on_ground=False
-        for plat in pygame.sprite.spritecollide(self,platforms,False):
-            if self.vel.y>0:
-                self.rect.bottom=plat.rect.top; self.vel.y=0; self.on_ground=True
-            elif self.vel.y<0:
-                self.rect.top=plat.rect.bottom; self.vel.y=0
-        if self.on_ground: self.jumps=0
-        # collect powerups
-        for pu in pygame.sprite.spritecollide(self,powerups,True):
-            if isinstance(pu, HockeyPowerUp): self.has_hockey=True
-            elif isinstance(pu, GuitarPowerUp): self.has_guitar=True
-            elif isinstance(pu, LaptopPowerUp): self.max_jumps=2
-        # shoot
-        keys=pygame.key.get_pressed()
-        if self.has_hockey and keys[pygame.K_q] and self.shoot_timer<=0:
-            pucks.add(Puck(self.rect.centerx,self.rect.centery,self.facing)); self.shoot_timer=SHOOT_COOLDOWN
-        if self.has_guitar and keys[pygame.K_e] and self.note_timer<=0:
-            notes.add(MusicNote(self.rect.centerx,self.rect.centery,self.facing)); self.note_timer=NOTE_COOLDOWN
+        # timers
+        if self.invincible_timer > 0:
+            self.invincible_timer -= 1
+        if self.shoot_timer > 0:
+            self.shoot_timer -= 1
+        if self.note_timer > 0:
+            self.note_timer -= 1
+        # movement
+        self.handle_input()
+        self.rect.x += self.vel.x
+        for plat in pygame.sprite.spritecollide(self, platforms, False):
+            if self.vel.x > 0:
+                self.rect.right = plat.rect.left
+            elif self.vel.x < 0:
+                self.rect.left = plat.rect.right
+        self.apply_gravity()
+        self.rect.y += self.vel.y
+        self.on_ground = False
+        for plat in pygame.sprite.spritecollide(self, platforms, False):
+            if self.vel.y > 0:
+                self.rect.bottom = plat.rect.top
+                self.vel.y = 0
+                self.on_ground = True
+            elif self.vel.y < 0:
+                self.rect.top = plat.rect.bottom
+                self.vel.y = 0
+        if self.on_ground:
+            self.jumps = 0
+        # power-up pickup
+        for pu in pygame.sprite.spritecollide(self, powerups, True):
+            if isinstance(pu, HockeyPowerUp):
+                self.has_hockey = True
+            elif isinstance(pu, GuitarPowerUp):
+                self.has_guitar = True
+            elif isinstance(pu, LaptopPowerUp):
+                self.has_laptop = True
+                self.max_jumps = 2
+        # shooting with hockey power-up
+        keys = pygame.key.get_pressed()
+        if self.has_hockey and keys[pygame.K_q] and self.shoot_timer <= 0:
+            pucks.add(Puck(self.rect.centerx, self.rect.centery, self.facing))
+            self.shoot_timer = SHOOT_COOLDOWN
         # collide enemies
-        for en in pygame.sprite.spritecollide(self,enemies,False):
-            if self.vel.y>0 and self.rect.bottom<=en.rect.top+10:
-                en.kill(); self.vel.y=JUMP_VELOCITY
-            elif self.invincible_timer<=0:
-                self.lose_powerups(); self.health-=1; self.invincible_timer=FPS
-        # score
-        for col in pygame.sprite.spritecollide(self,collectibles,True): score+=1
-        # update graphic
-        img=self.base_image.copy()
-        if self.has_hockey: img.blit(self.helmet,(0,0))
-        if self.has_guitar: img.blit(self.guitar,(0,0))
-        self.image=img
+        for en in pygame.sprite.spritecollide(self, enemies, False):
+            if self.vel.y > 0 and self.rect.bottom <= en.rect.top + 10:
+                en.kill()
+                self.vel.y = JUMP_VELOCITY
+            elif self.invincible_timer <= 0:
+                self.lose_powerups()
+                self.health -= 1
+                self.invincible_timer = FPS
+        # collide pucks
+        for pk in pygame.sprite.spritecollide(self, pucks, True):
+            if self.invincible_timer <= 0:
+                self.lose_powerups()
+                self.health -= 1
+                self.invincible_timer = FPS
+        # falling off stage
+        if self.rect.top > SCREEN_HEIGHT:
+            if self.invincible_timer <= 0:
+                self.lose_powerups()
+                self.health -= 1
+                self.invincible_timer = FPS
+            self.rect.topleft = self.spawn
+            self.vel = pygame.math.Vector2(0, 0)
+        # score collectibles
+        for col in pygame.sprite.spritecollide(self, collectibles, True):
+            score += 1
+        # update image overlay
+        img = self.base_image.copy()
+        if self.has_hockey:
+            img.blit(self.helmet, (0, 0))
+        if self.has_guitar:
+            img.blit(self.guitar, (0, 0))
+        self.image = img
 
 class Platform(pygame.sprite.Sprite):
     def __init__(self,x,y,w,h):
@@ -138,8 +168,7 @@ class Platform(pygame.sprite.Sprite):
 
 class Enemy(pygame.sprite.Sprite):
     def __init__(self,x,y,pat,spd):
-        super().__init__()
-        size=40; self.image=pygame.Surface((size,size)); self.image.fill((255,255,255)); pygame.draw.rect(self.image,(0,0,0),self.image.get_rect(),2)
+        super().__init__(); size=40; self.image=pygame.Surface((size,size)); self.image.fill((255,255,255)); pygame.draw.rect(self.image,(0,0,0),self.image.get_rect(),2)
         txt=pygame.font.Font(None,24).render("HW",True,(0,0,0)); self.image.blit(txt,txt.get_rect(center=(size//2,size//2)))
         self.rect=self.image.get_rect(topleft=(x,y)); self.start_x=x; self.range=pat; self.speed=spd; self.direction=1
     def update(self):
@@ -147,7 +176,15 @@ class Enemy(pygame.sprite.Sprite):
         if self.rect.x<self.start_x or self.rect.x>self.start_x+self.range: self.direction*=-1
 
 class HockeyEnemy(Enemy):
-    def __init__(self,x,y,pat,spd): super().__init__(x,y,pat,spd); self.shoot_timer=SHOOT_COOLDOWN
+    def __init__(self,x,y,pat,spd):
+        super().__init__(x,y,pat,spd)
+        self.shoot_timer=SHOOT_COOLDOWN
+        # red-shirt person graphic
+        size = 40
+        self.image = pygame.Surface((size,size), pygame.SRCALPHA)
+        pygame.draw.circle(self.image, (255,224,189), (size//2,8), 8)
+        pygame.draw.rect(self.image, (200,0,0), (size//2-10,16,20,size-16))
+        self.rect = self.image.get_rect(topleft=(x,y))
     def update(self):
         super().update(); self.shoot_timer-=1
         if self.shoot_timer<=0: pucks.add(Puck(self.rect.centerx,self.rect.centery,self.direction)); self.shoot_timer=SHOOT_COOLDOWN
@@ -157,8 +194,8 @@ class Puck(pygame.sprite.Sprite):
         super().__init__(); size=10; self.image=pygame.Surface((size,size),pygame.SRCALPHA)
         pygame.draw.circle(self.image,(0,0,0),(size//2,size//2),size//2)
         self.rect=self.image.get_rect(center=(x,y)); self.vel=pygame.math.Vector2(PUCK_SPEED*d,0); self.lifetime=PUCK_LIFETIME
-    def update(self):
-        self.rect.x+=self.vel.x; self.lifetime-=1
+    def update(self): 
+        self.rect.x+=self.vel.x; self.lifetime-=1; 
         if self.lifetime<=0: self.kill()
 
 class MusicNote(pygame.sprite.Sprite):
@@ -171,10 +208,18 @@ class MusicNote(pygame.sprite.Sprite):
         if self.lifetime<=0: self.kill()
 
 class HockeyPowerUp(pygame.sprite.Sprite):
-    def __init__(self,x,y): 
-      super().__init__(); size=20; self.image=pygame.Surface((size,size),pygame.SRCALPHA)
-      pygame.draw.circle(self.image,(0,0,0),(size//2,size//2),size//2); pygame.draw.circle(self.image,(255,255,255),(size//2,size//2),size//2-2)
-      self.rect=self.image.get_rect(center=(x,y))
+    def __init__(self, x, y):
+        super().__init__()
+        size = 20
+        # black puck icon
+        self.image = pygame.Surface((size, size), pygame.SRCALPHA)
+        pygame.draw.circle(
+            self.image,
+            (0, 0, 0),                  # solid black
+            (size // 2, size // 2),     # center
+            size // 2                   # radius
+        )
+        self.rect = self.image.get_rect(center=(x, y))
 
 class DumbbellPowerUp(pygame.sprite.Sprite):
     def __init__(self,x,y): 
@@ -219,17 +264,19 @@ def main():
     pygame.display.set_caption("2D Platformer")
     clock = pygame.time.Clock()
     font_small = pygame.font.Font(None, 36)
-    big_font = pygame.font.Font(None, 72)
-    platforms = pygame.sprite.Group()
-    enemies = pygame.sprite.Group()
-    pucks = pygame.sprite.Group()
-    notes = pygame.sprite.Group()
-    powerups = pygame.sprite.Group()
+    big_font   = pygame.font.Font(None, 72)
+
+    platforms    = pygame.sprite.Group()
+    enemies      = pygame.sprite.Group()
+    pucks        = pygame.sprite.Group()
+    notes        = pygame.sprite.Group()
+    powerups     = pygame.sprite.Group()
     collectibles = pygame.sprite.Group()
+
     # Load backgrounds
     bg_names = [
-        'highschool_bg', 'cornell_bg', 'college_bg', 'lynah_bg',
-        'gym_bg', 'nyc_bg', 'workspace_bg', 'startup_bg'
+        'highschool_bg', 'cornell_bg', 'collegetown_bg', 'lynah_bg',
+        'gym_bg', 'nyc_bg',        'workspace_bg','startup_bg'
     ]
     backgrounds = []
     for name in bg_names:
@@ -239,8 +286,9 @@ def main():
             img = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
             img.fill((150,150,150))
         backgrounds.append(pygame.transform.scale(img, (SCREEN_WIDTH, SCREEN_HEIGHT)))
+
     # Define all levels
-    gap = 50
+    gap = 30
     levels = [
         # 1: High School
         {'platforms': [(0,560,SCREEN_WIDTH-gap,40), (200,450,120,10), (400,380,100,10)],
@@ -286,7 +334,7 @@ def main():
 
     # spawn
     for idx, lvl in enumerate(levels):
-        xoff = idx * SCREEN_WIDTH
+        xoff = idx * LEVEL_WIDTH
         for x,y,w,h in lvl['platforms']:
             platforms.add(Platform(xoff+x,y,w,h))
         for x,y,pat,spd in lvl['enemies']:
@@ -300,28 +348,86 @@ def main():
             if c=='sushi': collectibles.add(SushiCollectible(xoff+x,y))
             if c=='beer': collectibles.add(BeerCollectible(xoff+x,y))
 
-    player = Player(10,510)
+    # spawn with per‑level difficulty scaling
+    for idx, lvl in enumerate(levels):
+        xoff = idx * SCREEN_WIDTH
+
+        # increase difficulty by 10% per level index
+        diff = 1 + idx * 0.1
+
+        # shrink platforms slightly
+        for x, y, w, h in lvl['platforms']:
+            adj_w = max(50, int(w - idx * 10))
+            platforms.add(Platform(xoff + x, y, adj_w, h))
+
+        # speed up enemies and lengthen their patrol
+        for x, y, pat, spd in lvl['enemies']:
+            scaled_spd = max(1, int(spd * diff))
+            scaled_pat = int(pat * diff)
+            enemies.add(Enemy(xoff + x, y, scaled_pat, scaled_spd))
+            enemies.add(HockeyEnemy(xoff + x + 80, y, scaled_pat, scaled_spd))
+
+        # power‑ups & collectibles unchanged
+        for x, y, t in lvl['powerups']:
+            if t == 'hockey': powerups.add(HockeyPowerUp(xoff + x, y))
+            if t == 'laptop': powerups.add(LaptopPowerUp(xoff + x, y))
+        for x, y, c in lvl['collectibles']:
+            if c == 'coin':  collectibles.add(CoinCollectible(xoff + x, y))
+            if c == 'sushi': collectibles.add(SushiCollectible(xoff + x, y))
+            if c == 'beer':  collectibles.add(BeerCollectible(xoff + x, y))
+
+    player  = Player(10, 510)
     running = True
+
     while running:
         for e in pygame.event.get():
-            if e.type == pygame.QUIT: running = False
-        player.update(platforms,enemies,pucks,notes,powerups,collectibles)
-        enemies.update(); pucks.update(); notes.update()
+            if e.type == pygame.QUIT:
+                running = False
+            elif e.type == pygame.KEYDOWN and e.key == pygame.K_q:
+               # only if we've picked up the hockey power‑up and cooldown is over
+               if player.has_hockey and player.shoot_timer <= 0:
+                   pucks.add(Puck(
+                       player.rect.centerx,
+                       player.rect.centery,
+                       player.facing
+                   ))
+                   player.shoot_timer = SHOOT_COOLDOWN
+
+        # update all sprites
+        player.update(platforms, enemies, pucks, notes, powerups, collectibles)
+        enemies.update()
+        pucks.update()
+        notes.update()
+
+        # ── GAME OVER WHEN HEALTH REACHES ZERO ──
+        if player.health <= 0:
+            show_message(screen, big_font, "Game Over", (255, 0, 0))
+            running = False
+            continue
+
         # camera
-        cam = player.rect.centerx - SCREEN_WIDTH//2
-        cam = max(0, min(cam, len(levels)*SCREEN_WIDTH-SCREEN_WIDTH))
-                # draw
-        # select background based on current view
-        current_level = cam // SCREEN_WIDTH
-        screen.blit(backgrounds[current_level], (0,0))
-        for grp in (platforms,enemies,pucks,notes,powerups,collectibles):
+        cam = player.rect.centerx - SCREEN_WIDTH // 2
+        cam = max(0, min(cam, len(levels)*LEVEL_WIDTH - SCREEN_WIDTH))
+
+        # draw background
+        current_level = cam // LEVEL_WIDTH
+        screen.blit(backgrounds[current_level], (0, 0))
+
+        # ── HEALTH DISPLAY ──
+        health_surf = font_small.render(f"Health: {player.health}", True, (255, 0, 0))
+        screen.blit(health_surf, (10, 10))
+
+        # draw all sprites
+        for grp in (platforms, enemies, pucks, notes, powerups, collectibles):
             for spr in grp:
-                screen.blit(spr.image, (spr.rect.x-cam, spr.rect.y))
+                screen.blit(spr.image, (spr.rect.x - cam, spr.rect.y))
         screen.blit(player.image, (player.rect.x - cam, player.rect.y))
+
         pygame.display.flip()
         clock.tick(FPS)
 
-    pygame.quit(); sys.exit()
+    pygame.quit()
+    sys.exit()
 
 if __name__=='__main__':
     main()
