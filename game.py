@@ -7,6 +7,8 @@ FPS = 60
 GRAVITY = 0.5
 PLAYER_SPEED = 5
 JUMP_VELOCITY = -12
+PUCK_SPEED = 10
+PUCK_LIFETIME = 60  # frames
 
 # — Classes —
 class Player(pygame.sprite.Sprite):
@@ -22,21 +24,24 @@ class Player(pygame.sprite.Sprite):
         self.on_ground = False
         self.health = 3
         self.invincible_timer = 0
+        self.facing = 1  # 1 = right, -1 = left
 
     def handle_input(self):
         keys = pygame.key.get_pressed()
         self.vel.x = 0
         if keys[pygame.K_LEFT]:
             self.vel.x = -PLAYER_SPEED
+            self.facing = -1
         if keys[pygame.K_RIGHT]:
             self.vel.x = PLAYER_SPEED
+            self.facing = 1
         if keys[pygame.K_SPACE] and self.on_ground:
             self.vel.y = JUMP_VELOCITY
 
     def apply_gravity(self):
         self.vel.y = min(self.vel.y + GRAVITY, 15)
 
-    def update(self, platforms, enemies):
+    def update(self, platforms, enemies, pucks_group):
         # invincibility timer
         if self.invincible_timer > 0:
             self.invincible_timer -= 1
@@ -63,6 +68,12 @@ class Player(pygame.sprite.Sprite):
         if pygame.sprite.spritecollide(self, enemies, False) and self.invincible_timer <= 0:
             self.health -= 1
             self.invincible_timer = FPS
+        # shoot puck
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_q]:
+            # spawn puck at player's center
+            puck = Puck(self.rect.centerx, self.rect.centery, self.facing)
+            pucks_group.add(puck)
 
 class Platform(pygame.sprite.Sprite):
     def __init__(self, x, y, w, h):
@@ -92,11 +103,27 @@ class Enemy(pygame.sprite.Sprite):
         if self.rect.x < self.start_x or self.rect.x > self.start_x + self.range:
             self.direction *= -1
 
+class Puck(pygame.sprite.Sprite):
+    def __init__(self, x, y, direction):
+        super().__init__()
+        size = 10
+        self.image = pygame.Surface((size, size), pygame.SRCALPHA)
+        pygame.draw.circle(self.image, (0, 0, 0), (size//2, size//2), size//2)
+        self.rect = self.image.get_rect(center=(x, y))
+        self.vel = pygame.math.Vector2(PUCK_SPEED * direction, 0)
+        self.lifetime = PUCK_LIFETIME
+
+    def update(self):
+        self.rect.x += self.vel.x
+        self.lifetime -= 1
+        if self.lifetime <= 0:
+            self.kill()
+
 # — Main —
 def main():
     pygame.init()
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-    pygame.display.set_caption("2D Platformer: High School → Cornell → Lynah Rink")
+    pygame.display.set_caption("2D Platformer with Hockey Power-Up")
     clock = pygame.time.Clock()
 
     # Load backgrounds with fallback
@@ -104,17 +131,17 @@ def main():
         bg_high = pygame.image.load('Images/highschool_bg.png').convert()
     except FileNotFoundError:
         bg_high = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
-        bg_high.fill((200, 200, 200))  # neutral gray
+        bg_high.fill((200, 200, 200))
     try:
         bg_cornell = pygame.image.load('Images/cornell_bg.png').convert()
     except FileNotFoundError:
         bg_cornell = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
-        bg_cornell.fill((180, 50, 50))  # Cornell red
+        bg_cornell.fill((180, 50, 50))
     try:
         bg_lynah = pygame.image.load('Images/lynah_bg.png').convert()
     except FileNotFoundError:
         bg_lynah = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
-        bg_lynah.fill((173, 216, 230))  # light blue ice rink
+        bg_lynah.fill((173, 216, 230))
     backgrounds = [
         pygame.transform.scale(bg_high, (SCREEN_WIDTH, SCREEN_HEIGHT)),
         pygame.transform.scale(bg_cornell, (SCREEN_WIDTH, SCREEN_HEIGHT)),
@@ -132,6 +159,7 @@ def main():
     # Create sprite groups
     platforms = pygame.sprite.Group()
     enemies = pygame.sprite.Group()
+    pucks = pygame.sprite.Group()
 
     # Flatten world into groups
     for idx, lvl in enumerate(levels):
@@ -151,8 +179,9 @@ def main():
                 running = False
 
         # Update
-        player.update(platforms, enemies)
+        player.update(platforms, enemies, pucks)
         enemies.update()
+        pucks.update()
 
         # Determine current level index
         cur_level = max(0, min(player.rect.centerx // SCREEN_WIDTH, len(levels) - 1))
@@ -178,6 +207,8 @@ def main():
             screen.blit(spr.image, (spr.rect.x - cam_x, spr.rect.y))
         for spr in enemies:
             screen.blit(spr.image, (spr.rect.x - cam_x, spr.rect.y))
+        for puck in pucks:
+            screen.blit(puck.image, (puck.rect.x - cam_x, puck.rect.y))
         screen.blit(player.image, (player.rect.x - cam_x, player.rect.y))
 
         pygame.display.flip()
