@@ -471,6 +471,16 @@ def main():
 
         # draw background
         current_level = cam // LEVEL_WIDTH
+
+        # ── END‑OF‑GAME: THANKS FOR PLAYING ──
+        last_idx = len(levels) - 1
+        # if we’re on the final level and the player’s right side 
+        # has passed the total span of all levels, finish up
+        if current_level == last_idx and player.rect.right >= len(levels) * LEVEL_WIDTH:
+            show_message(screen, big_font, "Thanks for Playing!", (0, 255, 0))
+            running = False
+            continue
+
         # ── detect level change ──
         if current_level != last_level:
             last_level    = current_level
