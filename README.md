@@ -34,24 +34,15 @@ Object-Oriented Programming for clean architecture
 
 🛠 How to Run
 Clone the repository:
-
-bash
-Copy
-Edit
 git clone https://github.com/EcSky19/ArtifactGame
 cd ArtifactGame
+
 Install Pygame:
-
-bash
-Copy
-Edit
 pip install pygame
-Run the game:
 
-bash
-Copy
-Edit
+Run the game:
 python main.py
+
 📌 Future Improvements
 Add multiple game levels
 
