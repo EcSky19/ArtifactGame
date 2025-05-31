@@ -13,6 +13,7 @@ Players take control of a character on a tile-based map and must:
 The game blends elements of puzzle-solving, exploration, and survival within a compact Pygame-powered framework.
 
 🚀 Features
+
 🧱 Grid-based map system with dynamic rendering
 
 🎯 Collision detection and intelligent path blocking
@@ -26,6 +27,7 @@ The game blends elements of puzzle-solving, exploration, and survival within a c
 🛠 Modular and extensible code structure
 
 🧑‍💻 Technologies Used
+
 Python 3
 
 Pygame for game rendering and mechanics
@@ -33,6 +35,7 @@ Pygame for game rendering and mechanics
 Object-Oriented Programming for clean architecture
 
 🛠 How to Run
+
 Clone the repository:
 git clone https://github.com/EcSky19/ArtifactGame
 cd ArtifactGame
@@ -44,6 +47,7 @@ Run the game:
 python main.py
 
 📌 Future Improvements
+
 Add multiple game levels
 
 Implement scoring system and timer
