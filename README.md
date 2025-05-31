@@ -31,3 +31,35 @@ Python 3
 Pygame for game rendering and mechanics
 
 Object-Oriented Programming for clean architecture
+
+🛠 How to Run
+Clone the repository:
+
+bash
+Copy
+Edit
+git clone https://github.com/EcSky19/ArtifactGame
+cd ArtifactGame
+Install Pygame:
+
+bash
+Copy
+Edit
+pip install pygame
+Run the game:
+
+bash
+Copy
+Edit
+python main.py
+📌 Future Improvements
+Add multiple game levels
+
+Implement scoring system and timer
+
+Enhance enemy AI behavior
+
+Add sound effects and background music
+
+Introduce power-ups and obstacles
+
